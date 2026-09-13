@@ -21,3 +21,8 @@ The integration lives under `custom_components/sump_monitor/`, as required for a
 ## Status
 
 This is an early development release. Test it before relying on its alerts for critical sump-pump protection.
+
+
+## Notification service
+
+The configuration flow presents a dropdown populated from the notify services currently registered in Home Assistant. Select **None (notifications disabled)** to disable alerts.

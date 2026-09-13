@@ -11,10 +11,12 @@
           "max_run_seconds": "Maximum run time (seconds)",
           "watchdog_multiplier": "Watchdog multiplier",
           "watchdog_min_seconds": "Minimum watchdog (seconds)",
-          "watchdog_max_seconds": "Maximum watchdog (seconds)"
+          "watchdog_max_seconds": "Maximum watchdog (seconds)",
+          "notification_service": "Notification service"
         },
         "data_description": {
-          "power_entity": "The sensor whose power consumption indicates whether the pump is running."
+          "power_entity": "The sensor whose power consumption indicates whether the pump is running.",
+          "notification_service": "Choose a configured notify service, or disable notifications."
         }
       }
     },

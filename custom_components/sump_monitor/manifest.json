@@ -1,7 +1,7 @@
 {
   "domain": "sump_monitor",
   "name": "Sump Monitor",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "documentation": "https://github.com/oester/sump_monitor",
   "issue_tracker": "https://github.com/oester/sump_monitor/issues",
   "requirements": [],

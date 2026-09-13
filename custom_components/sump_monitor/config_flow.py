@@ -18,6 +18,16 @@ from .const import (
 class SumpMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
+    def _notification_options(self):
+        """Return currently available notify services for the config flow."""
+        services = self.hass.services.async_services().get("notify", {})
+        options = [{"value": "", "label": "None (notifications disabled)"}]
+        options.extend(
+            {"value": service, "label": f"notify.{service}"}
+            for service in sorted(services)
+        )
+        return options
+
     async def async_step_user(self, user_input=None):
         errors = {}
         if user_input is not None:
@@ -31,7 +41,15 @@ class SumpMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 selector.EntitySelectorConfig(domain="sensor", device_class="power", multiple=False)
             ),
             vol.Required(CONF_RUNNING_WATTS, default=DEFAULT_RUNNING_WATTS): vol.Coerce(float),
-            vol.Optional(CONF_NOTIFICATION_SERVICE, default=DEFAULT_NOTIFICATION_SERVICE): str,
+            vol.Optional(
+                CONF_NOTIFICATION_SERVICE,
+                default=DEFAULT_NOTIFICATION_SERVICE,
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=self._notification_options(),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Required(CONF_ALERT_MULTIPLIER, default=DEFAULT_ALERT_MULTIPLIER): vol.Coerce(float),
             vol.Required(CONF_ALERT_MIN_MINUTES, default=DEFAULT_ALERT_MIN_MINUTES): vol.Coerce(float),
             vol.Required(CONF_ALERT_MAX_MINUTES, default=DEFAULT_ALERT_MAX_MINUTES): vol.Coerce(float),
