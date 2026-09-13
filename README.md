@@ -26,3 +26,7 @@ This is an early development release. Test it before relying on its alerts for c
 ## Notification service
 
 The configuration flow presents a dropdown populated from the notify services currently registered in Home Assistant. Select **None (notifications disabled)** to disable alerts.
+
+## Multiple pumps
+
+Sump Pump Monitor uses one Home Assistant config entry and registers each configured pump as its own Home Assistant device. After the initial setup, use the integration's **Configure** action to add, edit, or remove pumps.

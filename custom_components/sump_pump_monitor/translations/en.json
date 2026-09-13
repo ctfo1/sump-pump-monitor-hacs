@@ -1,0 +1,103 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Sump Pump Monitor",
+        "description": "Configure a sump pump using an existing Home Assistant power sensor.",
+        "data": {
+          "name": "Pump name",
+          "power_sensor": "Power sensor",
+          "running_watts": "Running power threshold (W)",
+          "notification_service": "Notification service",
+          "alert_multiplier": "Alert multiplier",
+          "alert_min_minutes": "Minimum alert interval (minutes)",
+          "alert_max_minutes": "Maximum alert interval (minutes)",
+          "max_run_seconds": "Maximum run duration (seconds)",
+          "interval_change_percent": "Interval change percentage",
+          "resume_after_hours": "Resume monitoring after (hours)",
+          "sensor_outage_minutes": "Power sensor outage delay (minutes)"
+        },
+        "data_description": {
+          "power_sensor": "The power sensor whose consumption indicates whether the sump pump is running.",
+          "notification_service": "Choose a configured notify service, or disable notifications."
+        }
+      }
+    },
+    "error": {
+      "invalid_entity": "The selected entity is not a power sensor."
+    },
+    "abort": {
+      "already_configured": "Sump Pump Monitor is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sump Pump Monitor",
+        "menu_options": {
+          "add_pump": "Add pump",
+          "edit_pump": "Edit pump",
+          "remove_pump": "Remove pump"
+        }
+      },
+      "add_pump": {
+        "title": "Add Sump Pump Monitor",
+        "description": "Configure a sump pump using an existing Home Assistant power sensor.",
+        "data": {
+          "name": "Pump name",
+          "power_sensor": "Power sensor",
+          "running_watts": "Running power threshold (W)",
+          "notification_service": "Notification service",
+          "alert_multiplier": "Alert multiplier",
+          "alert_min_minutes": "Minimum alert interval (minutes)",
+          "alert_max_minutes": "Maximum alert interval (minutes)",
+          "max_run_seconds": "Maximum run duration (seconds)",
+          "interval_change_percent": "Interval change percentage",
+          "resume_after_hours": "Resume monitoring after (hours)",
+          "sensor_outage_minutes": "Power sensor outage delay (minutes)"
+        },
+        "data_description": {
+          "power_sensor": "The power sensor whose consumption indicates whether the sump pump is running.",
+          "notification_service": "Choose a configured notify service, or disable notifications."
+        }
+      },
+      "edit_pump": {
+        "title": "Edit pump",
+        "data": {
+          "pump_id": "Pump"
+        }
+      },
+      "edit_pump_details": {
+        "title": "Add Sump Pump Monitor",
+        "description": "Configure a sump pump using an existing Home Assistant power sensor.",
+        "data": {
+          "name": "Pump name",
+          "power_sensor": "Power sensor",
+          "running_watts": "Running power threshold (W)",
+          "notification_service": "Notification service",
+          "alert_multiplier": "Alert multiplier",
+          "alert_min_minutes": "Minimum alert interval (minutes)",
+          "alert_max_minutes": "Maximum alert interval (minutes)",
+          "max_run_seconds": "Maximum run duration (seconds)",
+          "interval_change_percent": "Interval change percentage",
+          "resume_after_hours": "Resume monitoring after (hours)",
+          "sensor_outage_minutes": "Power sensor outage delay (minutes)"
+        },
+        "data_description": {
+          "power_sensor": "The power sensor whose consumption indicates whether the sump pump is running.",
+          "notification_service": "Choose a configured notify service, or disable notifications."
+        }
+      },
+      "remove_pump": {
+        "title": "Remove pump",
+        "data": {
+          "pump_id": "Pump"
+        }
+      }
+    },
+    "abort": {
+      "no_pumps": "No pumps are configured.",
+      "last_pump": "At least one pump must remain configured."
+    }
+  }
+}
