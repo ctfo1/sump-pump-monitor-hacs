@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Sump Pump Monitor",
+        "description": "Configure a sump pump using an existing Home Assistant power sensor.",
+        "data": {
+          "name": "Pump name",
+          "power_sensor": "Power sensor",
+          "running_watts": "Running power threshold (W)",
+          "notification_service": "Notification service",
+          "alert_multiplier": "Alert multiplier",
+          "alert_min_minutes": "Minimum alert interval (minutes)",
+          "alert_max_minutes": "Maximum alert interval (minutes)",
+          "max_run_seconds": "Maximum run duration (seconds)",
+          "interval_change_percent": "Interval change percentage",
+          "resume_after_hours": "Resume monitoring after (hours)",
+          "sensor_outage_minutes": "Power sensor outage delay (minutes)"
+        },
+        "data_description": {
+          "power_sensor": "The power sensor whose consumption indicates whether the sump pump is running.",
+          "notification_service": "Choose a configured notify service, or disable notifications."
+        }
+      }
+    },
+    "error": {
+      "invalid_entity": "The selected entity is not a power sensor."
+    },
+    "abort": {
+      "already_configured": "This power sensor is already configured."
+    }
+  }
+}

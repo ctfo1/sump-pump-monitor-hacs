@@ -1,6 +1,6 @@
 # Sump Pump Monitor
 
-A Home Assistant custom integration inspired by [oester/sump_pump_monitor](https://github.com/ctfo1/sump-pump-monitor-hacs).
+A Home Assistant custom integration inspired by [oester/sump_pump_monitor](https://github.com/oester/sump_monitor).
 
 It monitors sump pumps using an existing Home Assistant power sensor and creates a dedicated Home Assistant device for each configured pump.
 
