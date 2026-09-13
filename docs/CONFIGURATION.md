@@ -1,7 +1,7 @@
 # Configuration
 
 1. Install the integration and restart Home Assistant.
-2. Add **Sump Monitor**.
+2. Add **Sump Pump Monitor**.
 3. Configure one pump at a time.
 4. Enter the Home Assistant entity ID of a power sensor reporting watts.
 5. Set the wattage above which the pump is considered running.
