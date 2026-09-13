@@ -40,6 +40,14 @@ class PumpCoordinator:
         self._unsub = async_track_state_change_event(self.hass, [self.power_sensor], self._state_changed)
         self._listeners.append(self._unsub)
         self._reschedule_watchdog()
+        # Establish the running state from the current sensor value without
+        # inventing a run when the sensor starts at or below the threshold.
+        current_power = self._power()
+        if current_power is not None:
+            self.state["running"] = current_power > float(self.data[CONF_RUNNING_WATTS])
+            if not self.state["running"]:
+                self.state["run_start"] = None
+            self.hass.async_create_task(self._save())
 
     async def async_unload(self):
         for unsub in self._listeners:
@@ -75,7 +83,13 @@ class PumpCoordinator:
             self._sensor_offline()
             return
         if new_value is None: return
-        if old_value is None or old_value <= self.data[CONF_RUNNING_WATTS] < new_value:
+        threshold = float(self.data[CONF_RUNNING_WATTS])
+        if old_value is None:
+            # Unknown/unavailable -> a numeric value is a recovery event, not
+            # proof that the pump started. Evaluate the actual numeric value.
+            if new_value > threshold and not self.state["running"]:
+                self._start_run()
+        elif old_value <= threshold < new_value:
             if not self.state["running"]:
                 self._start_run()
         elif old_value > self.data[CONF_RUNNING_WATTS] >= new_value:
@@ -186,7 +200,15 @@ class PumpCoordinator:
         self.hass.async_create_task(self._save())
 
     def _notify(self, title, message):
-        service = str(self.data.get(CONF_NOTIFICATION_SERVICE, "")).strip()
+        service = str(
+            self.entry.options.get(
+                CONF_NOTIFICATION_SERVICE,
+                self.entry.data.get(
+                    CONF_NOTIFICATION_SERVICE,
+                    self.data.get(CONF_NOTIFICATION_SERVICE, ""),
+                ),
+            )
+        ).strip()
         if not service: return
         if "." in service:
             domain, name = service.split(".", 1)

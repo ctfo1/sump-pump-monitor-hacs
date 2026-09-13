@@ -46,5 +46,9 @@ class ConfigNumber(NumberEntity):
         pump = dict(pumps[self.c.pump_id])
         pump[self.key] = float(value)
         pumps[self.c.pump_id] = pump
-        self.c.hass.config_entries.async_update_entry(self.c.entry, options={CONF_PUMPS: pumps})
+        options = dict(self.c.entry.options)
+        options[CONF_PUMPS] = pumps
+        if CONF_NOTIFICATION_SERVICE not in options:
+            options[CONF_NOTIFICATION_SERVICE] = self.c.entry.data.get(CONF_NOTIFICATION_SERVICE, "")
+        self.c.hass.config_entries.async_update_entry(self.c.entry, options=options)
         await self.c._store.async_save(self.c.state)
