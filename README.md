@@ -30,3 +30,7 @@ The configuration flow presents a dropdown populated from the notify services cu
 ## Multiple pumps
 
 Sump Pump Monitor uses one Home Assistant config entry and registers each configured pump as its own Home Assistant device. After the initial setup, use the integration's **Configure** action to add, edit, or remove pumps.
+
+### Test notifications
+
+Each configured pump provides a **Test Notification** button. Press it from the pump device page to verify that the integration's configured notification target is reachable. The target can be a normal notify entity or a notification group helper.

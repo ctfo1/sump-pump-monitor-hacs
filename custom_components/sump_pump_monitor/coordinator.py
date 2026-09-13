@@ -199,22 +199,67 @@ class PumpCoordinator:
             self._notify("✅ Sump Power Sensor Back Online", f"{self.name}: monitoring has resumed. Watchdog will arm on the next sump run.")
         self.hass.async_create_task(self._save())
 
-    def _notify(self, title, message):
-        service = str(
+    async def async_send_test_notification(self) -> bool:
+        """Send a test notification using the configured target."""
+        target = str(
             self.entry.options.get(
-                CONF_NOTIFICATION_SERVICE,
+                CONF_NOTIFICATION_TARGET,
                 self.entry.data.get(
-                    CONF_NOTIFICATION_SERVICE,
-                    self.data.get(CONF_NOTIFICATION_SERVICE, ""),
+                    CONF_NOTIFICATION_TARGET,
+                    self.entry.options.get(
+                        CONF_NOTIFICATION_SERVICE,
+                        self.entry.data.get(CONF_NOTIFICATION_SERVICE, ""),
+                    ),
                 ),
             )
         ).strip()
-        if not service: return
-        if "." in service:
-            domain, name = service.split(".", 1)
-        else:
-            domain, name = "notify", service
-        self.hass.async_create_task(self.hass.services.async_call(domain, name, {"title": title, "message": message}, blocking=False))
+        if not target:
+            _LOGGER.warning("No notification target is configured for %s", self.name)
+            return False
+        if not target.startswith("notify."):
+            target = f"notify.{target}"
+        try:
+            await self.hass.services.async_call(
+                "notify",
+                "send_message",
+                {
+                    "message": f"Sump Pump Monitor test notification for {self.name}.",
+                    "title": "Sump Pump Monitor Test",
+                },
+                target={"entity_id": target},
+                blocking=True,
+            )
+        except Exception:
+            _LOGGER.exception("Failed to send test notification to %s", target)
+            return False
+        return True
+
+    def _notify(self, title, message):
+        target = str(
+            self.entry.options.get(
+                CONF_NOTIFICATION_TARGET,
+                self.entry.data.get(
+                    CONF_NOTIFICATION_TARGET,
+                    self.entry.options.get(
+                        CONF_NOTIFICATION_SERVICE,
+                        self.entry.data.get(CONF_NOTIFICATION_SERVICE, ""),
+                    ),
+                ),
+            )
+        ).strip()
+        if not target:
+            return
+        if not target.startswith("notify."):
+            target = f"notify.{target}"
+        self.hass.async_create_task(
+            self.hass.services.async_call(
+                "notify",
+                "send_message",
+                {"message": message, "title": title},
+                target={"entity_id": target},
+                blocking=False,
+            )
+        )
 
     @property
     def average_interval_seconds(self):

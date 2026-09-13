@@ -10,7 +10,7 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_ALERT_MAX_MINUTES, CONF_ALERT_MIN_MINUTES, CONF_ALERT_MULTIPLIER,
     CONF_INTERVAL_CHANGE_PERCENT, CONF_MAX_RUN_SECONDS, CONF_NAME,
-    CONF_NOTIFICATION_SERVICE, CONF_POWER_SENSOR, CONF_PUMPS,
+    CONF_NOTIFICATION_SERVICE, CONF_NOTIFICATION_TARGET, CONF_POWER_SENSOR, CONF_PUMPS,
     CONF_PUMP_ID, CONF_RESUME_AFTER_HOURS, CONF_RUNNING_WATTS,
     CONF_SENSOR_OUTAGE_MINUTES, DEFAULT_ALERT_MAX_MINUTES,
     DEFAULT_ALERT_MIN_MINUTES, DEFAULT_ALERT_MULTIPLIER,
@@ -24,43 +24,10 @@ class SumpPumpMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 3
 
     @staticmethod
-    def _notification_options(hass):
-        services = hass.services.async_services().get("notify", {})
-        options = [{"value": "", "label": "None (notifications disabled)"}]
-        options.extend(
-            {"value": f"notify.{service}", "label": f"notify.{service}"}
-            for service in sorted(services)
-        )
-        return options
-
-    @staticmethod
-    def _pump_schema(hass, include_name=True):
-        schema = {}
-        if include_name:
-            schema[vol.Required(CONF_NAME)] = str
-        schema.update({
-            vol.Required(CONF_POWER_SENSOR): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor", device_class="power", multiple=False)
-            ),
-            vol.Required(CONF_RUNNING_WATTS, default=DEFAULT_RUNNING_WATTS): vol.Coerce(float),
-            vol.Required(CONF_ALERT_MULTIPLIER, default=DEFAULT_ALERT_MULTIPLIER): vol.Coerce(float),
-            vol.Required(CONF_ALERT_MIN_MINUTES, default=DEFAULT_ALERT_MIN_MINUTES): vol.Coerce(float),
-            vol.Required(CONF_ALERT_MAX_MINUTES, default=DEFAULT_ALERT_MAX_MINUTES): vol.Coerce(float),
-            vol.Required(CONF_MAX_RUN_SECONDS, default=DEFAULT_MAX_RUN_SECONDS): vol.Coerce(float),
-            vol.Required(CONF_INTERVAL_CHANGE_PERCENT, default=DEFAULT_INTERVAL_CHANGE_PERCENT): vol.Coerce(float),
-            vol.Required(CONF_RESUME_AFTER_HOURS, default=DEFAULT_RESUME_AFTER_HOURS): vol.Coerce(float),
-            vol.Required(CONF_SENSOR_OUTAGE_MINUTES, default=DEFAULT_SENSOR_OUTAGE_MINUTES): vol.Coerce(float),
-        })
-        return vol.Schema(schema)
-
-    @staticmethod
     def _notification_schema(hass, current=""):
         return vol.Schema({
-            vol.Required(CONF_NOTIFICATION_SERVICE, default=current): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=SumpPumpMonitorConfigFlow._notification_options(hass),
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                )
+            vol.Optional(CONF_NOTIFICATION_TARGET, default=current): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="notify", multiple=False)
             )
         })
 
@@ -70,25 +37,22 @@ class SumpPumpMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             pump = dict(user_input)
             pump[CONF_PUMP_ID] = pump_id
             # Notification service is an integration-wide setting, not pump-specific.
-            notification_service = pump.pop(CONF_NOTIFICATION_SERVICE, DEFAULT_NOTIFICATION_SERVICE)
+            notification_target = pump.pop(CONF_NOTIFICATION_TARGET, "")
             return self.async_create_entry(
                 title="Sump Pump Monitor",
                 data={
                     CONF_PUMPS: {pump_id: pump},
-                    CONF_NOTIFICATION_SERVICE: notification_service,
+                    CONF_NOTIFICATION_TARGET: notification_target,
                 },
             )
 
         schema = self._pump_schema(self.hass)
-        # Keep notification selection visible during initial setup.
-        schema = vol.Schema({**schema.schema, vol.Required(
-            CONF_NOTIFICATION_SERVICE, default=DEFAULT_NOTIFICATION_SERVICE
-        ): selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=self._notification_options(self.hass),
-                mode=selector.SelectSelectorMode.DROPDOWN,
-            )
-        )})
+        schema = vol.Schema({
+            **schema.schema,
+            vol.Optional(CONF_NOTIFICATION_TARGET, default=""): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="notify", multiple=False)
+            ),
+        })
         return self.async_show_form(step_id="user", data_schema=schema)
 
     @staticmethod
@@ -104,28 +68,40 @@ class SumpPumpMonitorOptionsFlow(config_entries.OptionsFlowWithReload):
             pumps = self.config_entry.data.get(CONF_PUMPS, {})
         return {key: dict(value) for key, value in pumps.items()}
 
-    def _notification_service(self):
+    def _notification_target(self):
         return self.config_entry.options.get(
-            CONF_NOTIFICATION_SERVICE,
-            self.config_entry.data.get(CONF_NOTIFICATION_SERVICE, DEFAULT_NOTIFICATION_SERVICE),
+            CONF_NOTIFICATION_TARGET,
+            self.config_entry.data.get(
+                CONF_NOTIFICATION_TARGET,
+                self.config_entry.options.get(
+                    CONF_NOTIFICATION_SERVICE,
+                    self.config_entry.data.get(CONF_NOTIFICATION_SERVICE, ""),
+                ),
+            ),
         )
 
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_pump", "edit_pump", "remove_pump", "notification"],
+            menu_options={
+                "add_pump": "Add pump",
+                "edit_pump": "Edit pump",
+                "remove_pump": "Remove pump",
+                "notification": "Notification settings",
+            },
         )
 
     async def async_step_notification(self, user_input=None):
         if user_input is not None:
             options = dict(self.config_entry.options)
-            options[CONF_NOTIFICATION_SERVICE] = user_input[CONF_NOTIFICATION_SERVICE]
+            options[CONF_NOTIFICATION_TARGET] = user_input.get(CONF_NOTIFICATION_TARGET, "")
+            options.pop(CONF_NOTIFICATION_SERVICE, None)
             options.setdefault(CONF_PUMPS, self._pumps())
             return self.async_create_entry(title="", data=options)
         return self.async_show_form(
             step_id="notification",
             data_schema=SumpPumpMonitorConfigFlow._notification_schema(
-                self.hass, self._notification_service()
+                self.hass, self._notification_target()
             ),
         )
 
@@ -138,7 +114,8 @@ class SumpPumpMonitorOptionsFlow(config_entries.OptionsFlowWithReload):
             pumps[pump_id] = pump
             options = dict(self.config_entry.options)
             options[CONF_PUMPS] = pumps
-            options.setdefault(CONF_NOTIFICATION_SERVICE, self._notification_service())
+            options.setdefault(CONF_NOTIFICATION_TARGET, self._notification_target())
+            options.pop(CONF_NOTIFICATION_SERVICE, None)
             return self.async_create_entry(title="", data=options)
         return self.async_show_form(
             step_id="add_pump",
@@ -189,7 +166,8 @@ class SumpPumpMonitorOptionsFlow(config_entries.OptionsFlowWithReload):
         pumps[pump_id] = updated
         options = dict(self.config_entry.options)
         options[CONF_PUMPS] = pumps
-        options.setdefault(CONF_NOTIFICATION_SERVICE, self._notification_service())
+        options.setdefault(CONF_NOTIFICATION_TARGET, self._notification_target())
+        options.pop(CONF_NOTIFICATION_SERVICE, None)
         return self.async_create_entry(title="", data=options)
 
     async def async_step_remove_pump(self, user_input=None):
@@ -202,7 +180,8 @@ class SumpPumpMonitorOptionsFlow(config_entries.OptionsFlowWithReload):
                 return self.async_abort(reason="last_pump")
             options = dict(self.config_entry.options)
             options[CONF_PUMPS] = pumps
-            options.setdefault(CONF_NOTIFICATION_SERVICE, self._notification_service())
+            options.setdefault(CONF_NOTIFICATION_TARGET, self._notification_target())
+            options.pop(CONF_NOTIFICATION_SERVICE, None)
             return self.async_create_entry(title="", data=options)
         options = [
             {"value": pump_id, "label": pump[CONF_NAME]}

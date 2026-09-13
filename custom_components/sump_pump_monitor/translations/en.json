@@ -14,10 +14,12 @@
           "max_run_seconds": "Maximum run duration (seconds)",
           "interval_change_percent": "Interval change percentage",
           "resume_after_hours": "Resume monitoring after (hours)",
-          "sensor_outage_minutes": "Power sensor outage delay (minutes)"
+          "sensor_outage_minutes": "Power sensor outage delay (minutes)",
+          "notification_target": "Notification target"
         },
         "data_description": {
-          "power_sensor": "The power sensor whose consumption indicates whether the sump pump is running."
+          "power_sensor": "The power sensor whose consumption indicates whether the sump pump is running.",
+          "notification_target": "Select the notify entity used for alerts. Notification group helpers can be selected here."
         }
       }
     },
@@ -37,6 +39,12 @@
           "edit_pump": "Edit pump",
           "remove_pump": "Remove pump",
           "notification": "Notification settings"
+        },
+        "menu_option_descriptions": {
+          "add_pump": "Configure another sump pump.",
+          "edit_pump": "Change an existing pump's settings.",
+          "remove_pump": "Remove a configured pump.",
+          "notification": "Choose the notify entity used for alerts."
         }
       },
       "add_pump": {
@@ -91,12 +99,12 @@
       },
       "notification": {
         "title": "Notification settings",
-        "description": "Choose the Home Assistant notification service used for Sump Pump Monitor alerts.",
+        "description": "Choose the notify entity used for Sump Pump Monitor alerts. Notification group helpers can be selected here.",
         "data": {
-          "notification_service": "Notification service"
+          "notification_target": "Notification target"
         },
         "data_description": {
-          "notification_service": "Choose a configured notify service, or disable notifications."
+          "notification_target": "Select a notify entity, including a notification group helper. Leave empty to disable notifications."
         }
       }
     },
@@ -105,6 +113,13 @@
       "last_pump": "At least one pump must remain configured.",
       "pump_not_found": "The selected pump could not be found.",
       "edit_failed": "The pump could not be edited."
+    }
+  },
+  "entity": {
+    "button": {
+      "test_notification": {
+        "name": "Test Notification"
+      }
     }
   }
 }
