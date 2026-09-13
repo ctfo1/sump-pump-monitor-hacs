@@ -1,5 +1,4 @@
-from homeassistant.components.binary_sensor import BinarySensorEntity
-from homeassistant.const import BinarySensorDeviceClass
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from .const import DOMAIN
 
 async def async_setup_entry(hass,entry,async_add_entities):

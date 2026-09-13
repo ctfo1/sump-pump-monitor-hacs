@@ -1,7 +1,7 @@
 {
   "domain": "sump_pump_monitor",
   "name": "Sump Pump Monitor",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "documentation": "https://github.com/ctfo1/sump-pump-monitor-hacs",
   "issue_tracker": "https://github.com/ctfo1/sump-pump-monitor-hacs/issues",
   "requirements": [],
