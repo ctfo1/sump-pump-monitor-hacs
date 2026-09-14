@@ -8,11 +8,15 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
+
+# Dispatcher signal used by entities to refresh immediately when pump state changes.
+UPDATE_SIGNAL = "sump_pump_monitor_update"
 
 
 class PumpCoordinator:
@@ -132,6 +136,7 @@ class PumpCoordinator:
                 self._process_power_change()
                 self._process_switch_change()
 
+        self._dispatch_update()
         self._save_task()
 
     @property
@@ -153,6 +158,13 @@ class PumpCoordinator:
     @property
     def running_watts(self):
         return float(self.data.get(CONF_RUNNING_WATTS, DEFAULT_RUNNING_WATTS))
+
+    def _dispatch_update(self):
+        """Notify entities that coordinator state has changed."""
+        async_dispatcher_send(
+            self.hass,
+            f"{UPDATE_SIGNAL}_{self.entry.entry_id}_{self.pump_id}",
+        )
 
     def _save(self):
         return self._store.async_save(self.state)
@@ -208,6 +220,7 @@ class PumpCoordinator:
             self.state["current_power_samples"] = samples[-300:]
             self._evaluate_high_power()
             self._evaluate_heavy_cycling()
+        self._dispatch_update()
 
     def _process_switch_change(self):
         if self._switch_on() is False:
@@ -215,6 +228,7 @@ class PumpCoordinator:
                 "Sump Pump Monitor: Power Monitor Switched Off",
                 f"{self.name}: the configured power monitor switch is off.",
             )
+        self._dispatch_update()
 
     def _start_run(self, power: float):
         now = datetime.now(timezone.utc)
@@ -230,6 +244,7 @@ class PumpCoordinator:
         self._schedule_runtime_alert()
         self._evaluate_high_power()
         self._evaluate_heavy_cycling()
+        self._dispatch_update()
         self._save_task()
 
     def _stop_run(self):
@@ -261,6 +276,7 @@ class PumpCoordinator:
             self._runtime_cancel()
             self._runtime_cancel = None
         self._prune_history()
+        self._dispatch_update()
         self._save_task()
 
     def _schedule_runtime_alert(self):
@@ -282,6 +298,7 @@ class PumpCoordinator:
                 f"{self.name}: pump has been running for {elapsed:.1f} seconds "
                 f"(limit: {float(self.data.get(CONF_MAX_RUN_SECONDS, DEFAULT_MAX_RUN_SECONDS)):.0f}s).",
             )
+            self._dispatch_update()
             self._save_task()
 
     def _evaluate_high_power(self):
@@ -512,6 +529,7 @@ class PumpCoordinator:
             float(self.data.get(CONF_SENSOR_OUTAGE_MINUTES, DEFAULT_SENSOR_OUTAGE_MINUTES)) * 60,
             self._outage_alert,
         )
+        self._dispatch_update()
         self._save_task()
 
     def _clear_sensor_offline(self):
@@ -528,6 +546,7 @@ class PumpCoordinator:
                 "Sump Pump Monitor: Power Monitor Back Online",
                 f"{self.name}: the power monitor is available again.",
             )
+        self._dispatch_update()
         self._save_task()
 
     @callback
@@ -539,6 +558,7 @@ class PumpCoordinator:
                 "Sump Pump Monitor: Power Monitor Unavailable",
                 f"{self.name}: the configured power sensor is unavailable. Pump monitoring is suspended.",
             )
+            self._dispatch_update()
             self._save_task()
 
     def _notify(self, title, message):
