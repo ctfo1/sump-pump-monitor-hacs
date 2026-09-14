@@ -285,11 +285,22 @@ class PumpCoordinator:
 
     def _prune_history(self):
         history = sorted(self.state.get("history", []), key=lambda r: float(r.get("start", 0)))
-        cutoff = datetime.now(timezone.utc).timestamp() - int(
-            self.data.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS)
-        ) * 86400
+        # History retention is integration-wide and stored in config entry options.
+        history_days = int(
+            self.entry.options.get(
+                CONF_HISTORY_DAYS,
+                self.entry.data.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS),
+            )
+        )
+        max_cycles = int(
+            self.entry.options.get(
+                CONF_MAX_HISTORY_CYCLES,
+                self.entry.data.get(CONF_MAX_HISTORY_CYCLES, DEFAULT_MAX_HISTORY_CYCLES),
+            )
+        )
+        cutoff = datetime.now(timezone.utc).timestamp() - history_days * 86400
         history = [r for r in history if float(r.get("start", 0)) >= cutoff]
-        history = history[-int(self.data.get(CONF_MAX_HISTORY_CYCLES, DEFAULT_MAX_HISTORY_CYCLES)):]
+        history = history[-max_cycles:]
         self.state["history"] = history
 
     @property
@@ -506,7 +517,13 @@ class PumpCoordinator:
     async def async_send_test_notification(self):
         target = self.entry.options.get(
             CONF_NOTIFICATION_TARGET,
-            self.entry.data.get(CONF_NOTIFICATION_TARGET, ""),
+            self.entry.data.get(
+                CONF_NOTIFICATION_TARGET,
+                self.entry.options.get(
+                    CONF_NOTIFICATION_SERVICE,
+                    self.entry.data.get(CONF_NOTIFICATION_SERVICE, ""),
+                ),
+            ),
         )
         target = str(target or "").strip()
         if not target:
