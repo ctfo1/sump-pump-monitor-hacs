@@ -6,6 +6,15 @@ from homeassistant.core import HomeAssistant
 from .const import CONF_PUMPS, DOMAIN, PLATFORMS
 from .coordinator import PumpCoordinator
 
+# Preload platform modules while the integration is imported.
+# Home Assistant may otherwise import platform modules from the event loop during
+# config-entry forwarding, which can trigger blocking import warnings on newer HA/Python versions.
+from . import binary_sensor as _binary_sensor  # noqa: F401
+from . import button as _button  # noqa: F401
+from . import number as _number  # noqa: F401
+from . import select as _select  # noqa: F401
+from . import sensor as _sensor  # noqa: F401
+
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})
