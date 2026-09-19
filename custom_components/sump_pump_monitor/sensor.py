@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import UnitOfPower, UnitOfTime
 from homeassistant.core import callback
@@ -12,47 +14,40 @@ async def async_setup_entry(hass, entry, async_add_entities):
     entities = []
     for coordinator in coordinators.values():
         entities.extend([
-            PumpSensor(coordinator, "power", "Pump Power", UnitOfPower.WATT,
-                       lambda c: c._power(), SensorDeviceClass.POWER, True),
+            PumpSensor(coordinator, "pump_power", "Pump Power", UnitOfPower.WATT,
+                       "power", SensorDeviceClass.POWER),
             PumpSensor(coordinator, "current_run_duration", "Current Run Duration",
-                       UnitOfTime.SECONDS, lambda c: c.current_run_seconds),
+                       UnitOfTime.SECONDS, "current_run_duration"),
             PumpSensor(coordinator, "last_cycle_duration", "Last Cycle Duration",
-                       UnitOfTime.SECONDS, lambda c: c.last_cycle_duration),
+                       UnitOfTime.SECONDS, "last_cycle_duration"),
             PumpSensor(coordinator, "average_cycle_duration", "Average Cycle Duration",
-                       UnitOfTime.SECONDS, lambda c: c.average_cycle_duration),
+                       UnitOfTime.SECONDS, "average_cycle_duration"),
             PumpSensor(coordinator, "last_cycle_average_power", "Last Cycle Average Power",
-                       UnitOfPower.WATT, lambda c: c.state.get("last_run_avg_power"),
-                       SensorDeviceClass.POWER),
+                       UnitOfPower.WATT, "last_cycle_average_power", SensorDeviceClass.POWER),
             PumpSensor(coordinator, "last_cycle_peak_power", "Last Cycle Peak Power",
-                       UnitOfPower.WATT, lambda c: c.state.get("last_run_peak_power"),
-                       SensorDeviceClass.POWER),
+                       UnitOfPower.WATT, "last_cycle_peak_power", SensorDeviceClass.POWER),
             PumpSensor(coordinator, "historical_average_power", "Historical Average Power",
-                       UnitOfPower.WATT, lambda c: c.historical_average_power,
-                       SensorDeviceClass.POWER),
-            PumpSensor(coordinator, "cycles_24h", "Cycles — 24 Hours",
-                       None, lambda c: c.cycles_24h),
-            PumpSensor(coordinator, "runtime_24h", "Runtime — 24 Hours",
-                       UnitOfTime.SECONDS, lambda c: c.runtime_24h),
-            PumpSensor(coordinator, "last_cycle_start", "Last Cycle Start",
-                       None, lambda c: c.last_cycle_start_datetime,
-                       SensorDeviceClass.TIMESTAMP),
-            PumpSensor(coordinator, "last_cycle_end", "Last Cycle End",
-                       None, lambda c: c.last_cycle_end_datetime,
-                       SensorDeviceClass.TIMESTAMP),
+                       UnitOfPower.WATT, "historical_average_power", SensorDeviceClass.POWER),
+            PumpSensor(coordinator, "cycles_24_hours", "Cycles — 24 Hours", None,
+                       "cycles_24_hours"),
+            PumpSensor(coordinator, "runtime_24_hours", "Runtime — 24 Hours",
+                       UnitOfTime.SECONDS, "runtime_24_hours"),
+            PumpSensor(coordinator, "last_cycle_start", "Last Cycle Start", None,
+                       "last_cycle_start", SensorDeviceClass.TIMESTAMP),
+            PumpSensor(coordinator, "last_cycle_end", "Last Cycle End", None,
+                       "last_cycle_end", SensorDeviceClass.TIMESTAMP),
         ])
     async_add_entities(entities)
 
 
 class PumpSensor(SensorEntity):
-    """A sensor backed directly by a PumpCoordinator."""
+    """Simple read-only sensor backed by the pump coordinator."""
 
     _attr_should_poll = False
 
-    def __init__(self, coordinator, key, name, unit, fn,
-                 device_class=None, requires_power=False):
-        self.c = coordinator
-        self._fn = fn
-        self._requires_power = requires_power
+    def __init__(self, coordinator, key, name, unit, state_key, device_class=None):
+        self.coordinator = coordinator
+        self.state_key = state_key
         self._attr_unique_id = f"{coordinator.pump_id}_{key}"
         self._attr_name = name
         self._attr_native_unit_of_measurement = unit
@@ -66,8 +61,12 @@ class PumpSensor(SensorEntity):
         self._remove_listener = None
 
     async def async_added_to_hass(self):
-        self._remove_listener = self.c.add_update_listener(self._handle_coordinator_update)
+        self._remove_listener = self.coordinator.add_update_listener(
+            self._handle_coordinator_update
+        )
         self.async_on_remove(self._remove_listener)
+        # Publish the current coordinator state immediately.
+        self.async_write_ha_state()
 
     @callback
     def _handle_coordinator_update(self):
@@ -75,10 +74,18 @@ class PumpSensor(SensorEntity):
 
     @property
     def available(self):
-        if self._requires_power:
-            return self.c.sensor_available
+        # Only the direct pump-power sensor follows source availability.
+        if self.state_key == "power":
+            return bool(getattr(self.coordinator, "sensor_available", False))
         return True
 
     @property
     def native_value(self):
-        return self._fn()
+        try:
+            value = self.coordinator.get_entity_value(self.state_key)
+        except Exception:
+            # Do not let an entity property exception prevent entity creation.
+            return None
+        if isinstance(value, (int, float, datetime)) or value is None:
+            return value
+        return None

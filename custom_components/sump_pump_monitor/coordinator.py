@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any
 
+from homeassistant.core import callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
@@ -63,6 +64,45 @@ class PumpCoordinator:
         """Notify all entities that coordinator state has changed."""
         for listener in tuple(self._entity_listeners):
             listener()
+
+
+    def get_entity_value(self, key):
+        """Return the current value for a monitoring entity."""
+        if key == "power":
+            return self._power()
+        if key == "running":
+            return bool(self.state.get("running", False))
+        if key == "power_monitor_unavailable":
+            return bool(self.power_monitor_unavailable)
+        if key == "power_monitor_switched_off":
+            return bool(self.power_monitor_switched_off)
+        if key == "running_too_long":
+            return bool(self.running_too_long)
+        if key == "high_power_draw":
+            return bool(self.high_power)
+        if key == "heavy_cycling":
+            return bool(self.heavy_cycling)
+        if key == "current_run_duration":
+            return self.current_run_seconds or 0
+        if key == "last_cycle_duration":
+            return self.last_cycle_duration
+        if key == "average_cycle_duration":
+            return self.average_cycle_duration
+        if key == "last_cycle_average_power":
+            return self.state.get("last_run_avg_power")
+        if key == "last_cycle_peak_power":
+            return self.state.get("last_run_peak_power")
+        if key == "historical_average_power":
+            return self.historical_average_power
+        if key == "cycles_24_hours":
+            return self.cycles_24h or 0
+        if key == "runtime_24_hours":
+            return self.runtime_24h or 0
+        if key == "last_cycle_start":
+            return self.last_cycle_start_datetime
+        if key == "last_cycle_end":
+            return self.last_cycle_end_datetime
+        return None
 
     async def async_setup(self):
         stored = await self._store.async_load()
