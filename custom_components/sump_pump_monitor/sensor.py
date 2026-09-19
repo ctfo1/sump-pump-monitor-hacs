@@ -42,8 +42,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class PumpSensor(SensorEntity):
-    """Simple read-only sensor backed by the pump coordinator."""
-
     _attr_should_poll = False
 
     def __init__(self, coordinator, key, name, unit, state_key, device_class=None):
@@ -96,11 +94,15 @@ class PumpSensor(SensorEntity):
 
 
 class PumpCycleHistorySensor(SensorEntity):
-    """Expose retained cycle history as a useful HA sensor."""
+    """List-oriented retained cycle history.
+
+    The sensor state is a compact human-readable list of cycle timestamps.
+    The structured records are exposed in the `cycles` attribute, keyed by
+    cycle start date/time so templates and Lovelace can use them directly.
+    """
 
     _attr_should_poll = False
     _attr_icon = "mdi:history"
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
     def __init__(self, coordinator):
         self.coordinator = coordinator
@@ -125,77 +127,57 @@ class PumpCycleHistorySensor(SensorEntity):
     def _handle_coordinator_update(self):
         self.async_write_ha_state()
 
+    @staticmethod
+    def _timestamp(value):
+        if value is None:
+            return None
+        return datetime.fromtimestamp(
+            float(value), timezone.utc
+        ).astimezone().isoformat(timespec="seconds")
+
     @property
     def native_value(self):
-        """Return the duration of the most recently completed cycle."""
-        if not self.coordinator.history:
-            return None
+        """Return a compact list of cycle date/times.
 
-        record = self.coordinator.history[-1]
-        duration = record.get("duration")
-
-        if duration is None:
-            return None
-
-        return round(float(duration))
+        This intentionally is not a numeric value, preventing HA from treating
+        cycle history as a measurement and graphing/summing the durations.
+        """
+        entries = []
+        for record in reversed(self.coordinator.history):
+            start = self._timestamp(record.get("start"))
+            if start:
+                entries.append(start)
+        return entries or "No cycles recorded"
 
     @property
     def extra_state_attributes(self):
-        """Expose retained history and convenient latest-cycle values."""
-        cycles = []
+        """Return structured history keyed by cycle start date/time."""
+        cycles = {}
 
         for record in reversed(self.coordinator.history):
-            start = record.get("start")
-            end = record.get("end")
+            start = self._timestamp(record.get("start"))
+            if not start:
+                continue
 
-            cycles.append(
-                {
-                    "start": (
-                        datetime.fromtimestamp(
-                            float(start), timezone.utc
-                        ).astimezone().isoformat()
-                        if start is not None
-                        else None
-                    ),
-                    "end": (
-                        datetime.fromtimestamp(
-                            float(end), timezone.utc
-                        ).astimezone().isoformat()
-                        if end is not None
-                        else None
-                    ),
-                    "duration": (
-                        round(float(record["duration"]))
-                        if record.get("duration") is not None
-                        else None
-                    ),
-                    "average_power": (
-                        round(float(record["average_power"]), 1)
-                        if record.get("average_power") is not None
-                        else None
-                    ),
-                    "peak_power": (
-                        round(float(record["peak_power"]), 1)
-                        if record.get("peak_power") is not None
-                        else None
-                    ),
-                }
-            )
-
-        latest = cycles[0] if cycles else None
+            cycles[start] = {
+                "duration": (
+                    round(float(record["duration"]))
+                    if record.get("duration") is not None else None
+                ),
+                "average_power": (
+                    round(float(record["average_power"]), 1)
+                    if record.get("average_power") is not None else None
+                ),
+                "peak_power": (
+                    round(float(record["peak_power"]), 1)
+                    if record.get("peak_power") is not None else None
+                ),
+                "end": self._timestamp(record.get("end")),
+            }
 
         return {
             "cycles": cycles,
             "retained_cycles": len(cycles),
             "history_days": self.coordinator.history_days,
             "max_history_cycles": self.coordinator.max_history_cycles,
-            "last_cycle_start": latest["start"] if latest else None,
-            "last_cycle_end": latest["end"] if latest else None,
-            "last_cycle_duration": latest["duration"] if latest else None,
-            "last_cycle_average_power": (
-                latest["average_power"] if latest else None
-            ),
-            "last_cycle_peak_power": (
-                latest["peak_power"] if latest else None
-            ),
         }
