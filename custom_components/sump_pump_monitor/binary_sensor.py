@@ -1,29 +1,34 @@
+from __future__ import annotations
+
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.core import callback
 
 from .const import DOMAIN
-from .coordinator import UPDATE_SIGNAL
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinators = hass.data[DOMAIN][entry.entry_id]
     entities = []
     for coordinator in coordinators.values():
-        entities.extend(
-            [
-                PumpBinary(coordinator, "running", "Pump Running", BinarySensorDeviceClass.RUNNING, lambda c: c.state.get("running", False)),
-                PumpBinary(coordinator, "power_monitor_unavailable", "Power Monitor Unavailable", BinarySensorDeviceClass.PROBLEM, lambda c: c.power_monitor_unavailable),
-                PumpBinary(coordinator, "power_monitor_switched_off", "Power Monitor Switched Off", BinarySensorDeviceClass.PROBLEM, lambda c: c.power_monitor_switched_off),
-                PumpBinary(coordinator, "running_too_long", "Running Too Long", BinarySensorDeviceClass.PROBLEM, lambda c: c.running_too_long),
-                PumpBinary(coordinator, "high_power", "High Power Draw", BinarySensorDeviceClass.PROBLEM, lambda c: c.high_power),
-                PumpBinary(coordinator, "heavy_cycling", "Heavy Cycling", BinarySensorDeviceClass.PROBLEM, lambda c: c.heavy_cycling),
-            ]
-        )
-    async_add_entities(entities, update_before_add=True)
+        entities.extend([
+            PumpBinary(coordinator, "running", "Pump Running",
+                       BinarySensorDeviceClass.RUNNING, lambda c: c.state.get("running", False)),
+            PumpBinary(coordinator, "power_monitor_unavailable", "Power Monitor Unavailable",
+                       BinarySensorDeviceClass.PROBLEM, lambda c: c.power_monitor_unavailable),
+            PumpBinary(coordinator, "power_monitor_switched_off", "Power Monitor Switched Off",
+                       BinarySensorDeviceClass.PROBLEM, lambda c: c.power_monitor_switched_off),
+            PumpBinary(coordinator, "running_too_long", "Running Too Long",
+                       BinarySensorDeviceClass.PROBLEM, lambda c: c.running_too_long),
+            PumpBinary(coordinator, "high_power", "High Power Draw",
+                       BinarySensorDeviceClass.PROBLEM, lambda c: c.high_power),
+            PumpBinary(coordinator, "heavy_cycling", "Heavy Cycling",
+                       BinarySensorDeviceClass.PROBLEM, lambda c: c.heavy_cycling),
+        ])
+    async_add_entities(entities)
 
 
 class PumpBinary(BinarySensorEntity):
-    _attr_should_poll = True
+    _attr_should_poll = False
 
     def __init__(self, coordinator, key, name, device_class, fn):
         self.c = coordinator
@@ -37,17 +42,14 @@ class PumpBinary(BinarySensorEntity):
             "manufacturer": "Sump Pump Monitor",
             "model": "Sump Pump",
         }
+        self._remove_listener = None
 
     async def async_added_to_hass(self):
-        self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                f"{UPDATE_SIGNAL}_{self.c.entry.entry_id}_{self.c.pump_id}",
-                self._handle_update,
-            )
-        )
+        self._remove_listener = self.c.add_update_listener(self._handle_coordinator_update)
+        self.async_on_remove(self._remove_listener)
 
-    def _handle_update(self):
+    @callback
+    def _handle_coordinator_update(self):
         self.async_write_ha_state()
 
     @property

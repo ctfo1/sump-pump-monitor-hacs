@@ -51,6 +51,18 @@ class PumpCoordinator:
         self._runtime_cancel = None
         self._outage_cancel = None
         self._last_status_update = 0.0
+        self._entity_listeners = set()
+
+    def add_update_listener(self, listener):
+        """Register a callback for entity state updates."""
+        self._entity_listeners.add(listener)
+        return lambda: self._entity_listeners.discard(listener)
+
+    @callback
+    def async_update_entities(self):
+        """Notify all entities that coordinator state has changed."""
+        for listener in tuple(self._entity_listeners):
+            listener()
 
     async def async_setup(self):
         stored = await self._store.async_load()
@@ -83,6 +95,7 @@ class PumpCoordinator:
                 self._schedule_runtime_alert()
         self._prune_history()
         await self._save()
+        self.async_update_entities()
 
     async def async_unload(self):
         for unsub in self._listeners:
