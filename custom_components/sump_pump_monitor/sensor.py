@@ -66,7 +66,6 @@ class PumpSensor(SensorEntity):
             self._handle_coordinator_update
         )
         self.async_on_remove(self._remove_listener)
-        # Publish the current coordinator state immediately.
         self.async_write_ha_state()
 
     @callback
@@ -75,7 +74,6 @@ class PumpSensor(SensorEntity):
 
     @property
     def available(self):
-        # Only the direct pump-power sensor follows source availability.
         if self.state_key == "power":
             return bool(getattr(self.coordinator, "sensor_available", False))
         return True
@@ -85,7 +83,6 @@ class PumpSensor(SensorEntity):
         try:
             value = self.coordinator.get_entity_value(self.state_key)
         except Exception:
-            # Do not let an entity property exception prevent entity creation.
             return None
         if value is None:
             return None
@@ -99,10 +96,11 @@ class PumpSensor(SensorEntity):
 
 
 class PumpCycleHistorySensor(SensorEntity):
-    """Expose retained cycle history as a Lovelace-friendly sensor."""
+    """Expose retained cycle history as a useful HA sensor."""
 
     _attr_should_poll = False
     _attr_icon = "mdi:history"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
     def __init__(self, coordinator):
         self.coordinator = coordinator
@@ -129,41 +127,75 @@ class PumpCycleHistorySensor(SensorEntity):
 
     @property
     def native_value(self):
-        return len(self.coordinator.history)
+        """Return the duration of the most recently completed cycle."""
+        if not self.coordinator.history:
+            return None
+
+        record = self.coordinator.history[-1]
+        duration = record.get("duration")
+
+        if duration is None:
+            return None
+
+        return round(float(duration))
 
     @property
     def extra_state_attributes(self):
+        """Expose retained history and convenient latest-cycle values."""
         cycles = []
+
         for record in reversed(self.coordinator.history):
             start = record.get("start")
             end = record.get("end")
+
             cycles.append(
                 {
                     "start": (
-                        datetime.fromtimestamp(float(start), timezone.utc).astimezone().isoformat()
+                        datetime.fromtimestamp(
+                            float(start), timezone.utc
+                        ).astimezone().isoformat()
                         if start is not None
                         else None
                     ),
                     "end": (
-                        datetime.fromtimestamp(float(end), timezone.utc).astimezone().isoformat()
+                        datetime.fromtimestamp(
+                            float(end), timezone.utc
+                        ).astimezone().isoformat()
                         if end is not None
                         else None
                     ),
-                    "duration": round(float(record["duration"]))
-                    if record.get("duration") is not None
-                    else None,
-                    "average_power": round(float(record["average_power"]), 1)
-                    if record.get("average_power") is not None
-                    else None,
-                    "peak_power": round(float(record["peak_power"]), 1)
-                    if record.get("peak_power") is not None
-                    else None,
+                    "duration": (
+                        round(float(record["duration"]))
+                        if record.get("duration") is not None
+                        else None
+                    ),
+                    "average_power": (
+                        round(float(record["average_power"]), 1)
+                        if record.get("average_power") is not None
+                        else None
+                    ),
+                    "peak_power": (
+                        round(float(record["peak_power"]), 1)
+                        if record.get("peak_power") is not None
+                        else None
+                    ),
                 }
             )
+
+        latest = cycles[0] if cycles else None
 
         return {
             "cycles": cycles,
             "retained_cycles": len(cycles),
             "history_days": self.coordinator.history_days,
             "max_history_cycles": self.coordinator.max_history_cycles,
+            "last_cycle_start": latest["start"] if latest else None,
+            "last_cycle_end": latest["end"] if latest else None,
+            "last_cycle_duration": latest["duration"] if latest else None,
+            "last_cycle_average_power": (
+                latest["average_power"] if latest else None
+            ),
+            "last_cycle_peak_power": (
+                latest["peak_power"] if latest else None
+            ),
         }
