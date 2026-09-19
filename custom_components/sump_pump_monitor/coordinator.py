@@ -9,7 +9,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
-from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
 from .const import *
@@ -214,10 +213,7 @@ class PumpCoordinator:
 
     def _dispatch_update(self):
         """Notify entities that coordinator state has changed."""
-        async_dispatcher_send(
-            self.hass,
-            f"{UPDATE_SIGNAL}_{self.entry.entry_id}_{self.pump_id}",
-        )
+        self.async_update_entities()
 
     def _save(self):
         return self._store.async_save(self.state)
@@ -466,7 +462,8 @@ class PumpCoordinator:
 
     @property
     def power_monitor_unavailable(self):
-        return self.state.get("sensor_offline_alerted", False)
+        """Return whether the configured power sensor is currently unavailable."""
+        return self._power() is None
 
     @property
     def running_too_long(self):
@@ -577,9 +574,10 @@ class PumpCoordinator:
         self.state["sensor_offline_alerted"] = False
         if self._outage_cancel:
             self._outage_cancel()
+        # Keep the startup/outage grace period fixed at one minute.
         self._outage_cancel = async_call_later(
             self.hass,
-            float(self.data.get(CONF_SENSOR_OUTAGE_MINUTES, DEFAULT_SENSOR_OUTAGE_MINUTES)) * 60,
+            60,
             self._outage_alert,
         )
         self._dispatch_update()

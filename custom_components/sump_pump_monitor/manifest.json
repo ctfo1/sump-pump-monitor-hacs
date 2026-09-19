@@ -1,13 +1,13 @@
 {
   "domain": "sump_pump_monitor",
   "name": "Sump Pump Monitor",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "documentation": "https://github.com/ctfo1/sump-pump-monitor-hacs",
   "issue_tracker": "https://github.com/ctfo1/sump-pump-monitor-hacs/issues",
   "requirements": [],
   "codeowners": [],
   "config_flow": true,
-  "iot_class": "local_polling",
+  "iot_class": "local_push",
   "integration_type": "hub",
   "dependencies": [],
   "single_config_entry": true
