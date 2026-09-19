@@ -53,7 +53,7 @@ Each completed cycle stores:
 
 Default retention is **90 days** and **2,000 cycles per pump**. Both limits are enforced, with the oldest records removed first.
 
-History is stored in Home Assistant's integration storage and survives Home Assistant restarts. It is separate from Recorder retention.
+History is stored in Home Assistant's integration storage and survives Home Assistant restarts. It is separate from Recorder retention. Each pump exposes a **Cycle History** sensor whose `cycles` attribute contains the retained records, making the data directly usable by Lovelace, templates, and automations.
 
 ## Default settings
 
@@ -63,8 +63,7 @@ History is stored in Home Assistant's integration storage and survives Home Assi
 - Power baseline cycles: **20**
 - Heavy usage window: **6 hours**
 - Heavy cycling threshold: **50%**
-- Minimum historical cycles: **5**
-- Power monitor unavailable delay: **2 minutes**
+- Minimum historical cycles: **10**
 - History age: **90 days**
 - Maximum cycles per pump: **2,000**
 - Notification target: disabled until selected

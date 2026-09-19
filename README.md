@@ -32,6 +32,32 @@ The historical data is integration-owned persistent storage; it is not stored in
 
 Recent completed cycles are used as the anomaly-detection baselines. A cycle that is currently in progress is never included in the historical baseline.
 
+### Cycle History entity
+
+Each pump exposes a **Cycle History** sensor. Its state is the number of retained completed cycles, while the `cycles` attribute contains the retained records in newest-first order. Each record includes start time, end time, duration, average power, and peak power. The data is backed by Home Assistant's integration storage and survives restarts; it is independent of Recorder retention.
+
+Retention is configurable from the integration's **Cycle history settings** menu:
+
+- **Maximum history age:** default 90 days
+- **Maximum cycles per pump:** default 2,000
+
+Both limits are enforced and the oldest records are removed first.
+
+For example, a Lovelace Markdown card can display the history directly:
+
+```yaml
+type: markdown
+title: Pump 3 Cycle History
+content: |
+  | Start | Duration | Avg | Peak |
+  |---|---:|---:|---:|
+  {% for cycle in state_attr('sensor.pump_3_cycle_history', 'cycles') or [] %}
+  | {{ as_timestamp(cycle.start) | timestamp_custom('%Y-%m-%d %H:%M:%S') if cycle.start else '—' }} | {{ cycle.duration }} s | {{ cycle.average_power }} W | {{ cycle.peak_power }} W |
+  {% endfor %}
+```
+
+The entity is a normal sensor rather than an event so Lovelace, templates, and automations can access the retained history directly.
+
 ## Installation with HACS
 
 1. Open **HACS → Integrations**.

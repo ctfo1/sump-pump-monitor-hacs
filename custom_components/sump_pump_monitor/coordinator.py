@@ -395,21 +395,31 @@ class PumpCoordinator:
     def history(self) -> list[dict]:
         return list(self.state.get("history", []))
 
-    def _prune_history(self):
-        history = sorted(self.state.get("history", []), key=lambda r: float(r.get("start", 0)))
-        # History retention is integration-wide and stored in config entry options.
-        history_days = int(
+    @property
+    def history_days(self) -> int:
+        return int(
             self.entry.options.get(
                 CONF_HISTORY_DAYS,
                 self.entry.data.get(CONF_HISTORY_DAYS, DEFAULT_HISTORY_DAYS),
             )
         )
-        max_cycles = int(
+
+    @property
+    def max_history_cycles(self) -> int:
+        return int(
             self.entry.options.get(
                 CONF_MAX_HISTORY_CYCLES,
-                self.entry.data.get(CONF_MAX_HISTORY_CYCLES, DEFAULT_MAX_HISTORY_CYCLES),
+                self.entry.data.get(
+                    CONF_MAX_HISTORY_CYCLES, DEFAULT_MAX_HISTORY_CYCLES
+                ),
             )
         )
+
+    def _prune_history(self):
+        history = sorted(self.state.get("history", []), key=lambda r: float(r.get("start", 0)))
+        # History retention is integration-wide and stored in config entry options.
+        history_days = self.history_days
+        max_cycles = self.max_history_cycles
         cutoff = datetime.now(timezone.utc).timestamp() - history_days * 86400
         history = [r for r in history if float(r.get("start", 0)) >= cutoff]
         history = history[-max_cycles:]
