@@ -86,6 +86,12 @@ class PumpSensor(SensorEntity):
         except Exception:
             # Do not let an entity property exception prevent entity creation.
             return None
-        if isinstance(value, (int, float, datetime)) or value is None:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            if self._attr_native_unit_of_measurement == UnitOfTime.SECONDS:
+                return round(value)
+            return value
+        if isinstance(value, datetime):
             return value
         return None
