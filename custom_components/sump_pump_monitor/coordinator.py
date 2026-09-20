@@ -17,6 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Dispatcher signal used by entities to refresh immediately when pump state changes.
 UPDATE_SIGNAL = "sump_pump_monitor_update"
+EVENT_CYCLE_COMPLETED = "sump_pump_monitor_cycle_completed"
 
 
 class PumpCoordinator:
@@ -325,6 +326,25 @@ class PumpCoordinator:
             self._runtime_cancel()
             self._runtime_cancel = None
         self._prune_history()
+
+        # Emit a real-time event for the completed cycle. The retained history
+        # above remains the persistent record; the event is intended for
+        # automations and other consumers that need the cycle immediately.
+        self.hass.bus.async_fire(
+            EVENT_CYCLE_COMPLETED,
+            {
+                "pump_id": self.pump_id,
+                "pump_name": self.name,
+                "start": (
+                    datetime.fromtimestamp(float(start), timezone.utc).astimezone().isoformat(timespec="seconds")
+                    if start else None
+                ),
+                "end": datetime.fromtimestamp(ts, timezone.utc).astimezone().isoformat(timespec="seconds"),
+                "duration": round(duration) if duration is not None else None,
+                "average_power": round(avg_power, 1) if avg_power is not None else None,
+                "peak_power": round(peak_power, 1) if peak_power is not None else None,
+            },
+        )
         self._dispatch_update()
         self._save_task()
 

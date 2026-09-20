@@ -45,4 +45,6 @@ DEFAULT_INTERVAL_CHANGE_PERCENT = 25.0
 DEFAULT_RESUME_AFTER_HOURS = 72.0
 DEFAULT_SENSOR_OUTAGE_MINUTES = 1
 
+EVENT_CYCLE_COMPLETED = "sump_pump_monitor_cycle_completed"
+
 PLATFORMS = ["sensor", "binary_sensor", "number", "select", "button"]

@@ -42,6 +42,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class PumpSensor(SensorEntity):
+    """Simple read-only sensor backed by the pump coordinator."""
+
     _attr_should_poll = False
 
     def __init__(self, coordinator, key, name, unit, state_key, device_class=None):
@@ -64,6 +66,7 @@ class PumpSensor(SensorEntity):
             self._handle_coordinator_update
         )
         self.async_on_remove(self._remove_listener)
+        # Publish the current coordinator state immediately.
         self.async_write_ha_state()
 
     @callback
@@ -72,6 +75,7 @@ class PumpSensor(SensorEntity):
 
     @property
     def available(self):
+        # Only the direct pump-power sensor follows source availability.
         if self.state_key == "power":
             return bool(getattr(self.coordinator, "sensor_available", False))
         return True
@@ -81,6 +85,7 @@ class PumpSensor(SensorEntity):
         try:
             value = self.coordinator.get_entity_value(self.state_key)
         except Exception:
+            # Do not let an entity property exception prevent entity creation.
             return None
         if value is None:
             return None
@@ -94,11 +99,11 @@ class PumpSensor(SensorEntity):
 
 
 class PumpCycleHistorySensor(SensorEntity):
-    """List-oriented retained cycle history.
+    """Summary of retained cycle history.
 
-    The sensor state is a compact human-readable list of cycle timestamps.
-    The structured records are exposed in the `cycles` attribute, keyed by
-    cycle start date/time so templates and Lovelace can use them directly.
+    The complete history is intentionally kept in the coordinator's persistent
+    storage rather than exposed as a large sensor state/attribute. A completed
+    cycle is also emitted as a Home Assistant event by the coordinator.
     """
 
     _attr_should_poll = False
@@ -127,57 +132,51 @@ class PumpCycleHistorySensor(SensorEntity):
     def _handle_coordinator_update(self):
         self.async_write_ha_state()
 
-    @staticmethod
-    def _timestamp(value):
-        if value is None:
-            return None
-        return datetime.fromtimestamp(
-            float(value), timezone.utc
-        ).astimezone().isoformat(timespec="seconds")
-
     @property
     def native_value(self):
-        """Return a compact list of cycle date/times.
-
-        This intentionally is not a numeric value, preventing HA from treating
-        cycle history as a measurement and graphing/summing the durations.
-        """
-        entries = []
-        for record in reversed(self.coordinator.history):
-            start = self._timestamp(record.get("start"))
-            if start:
-                entries.append(start)
-        return entries or "No cycles recorded"
+        """Number of cycles currently retained by the integration."""
+        return len(self.coordinator.history)
 
     @property
     def extra_state_attributes(self):
-        """Return structured history keyed by cycle start date/time."""
-        cycles = {}
+        """Expose only a compact latest-cycle summary.
 
-        for record in reversed(self.coordinator.history):
-            start = self._timestamp(record.get("start"))
-            if not start:
-                continue
-
-            cycles[start] = {
-                "duration": (
-                    round(float(record["duration"]))
-                    if record.get("duration") is not None else None
-                ),
-                "average_power": (
-                    round(float(record["average_power"]), 1)
-                    if record.get("average_power") is not None else None
-                ),
-                "peak_power": (
-                    round(float(record["peak_power"]), 1)
-                    if record.get("peak_power") is not None else None
-                ),
-                "end": self._timestamp(record.get("end")),
+        The full retained history is intentionally not duplicated into entity
+        attributes. It remains in persistent integration storage and each new
+        cycle is emitted as EVENT_CYCLE_COMPLETED.
+        """
+        history = self.coordinator.history
+        latest = history[-1] if history else None
+        if not latest:
+            return {
+                "retained_cycles": 0,
+                "history_days": self.coordinator.history_days,
+                "max_history_cycles": self.coordinator.max_history_cycles,
             }
 
+        def iso(value):
+            if value is None:
+                return None
+            return datetime.fromtimestamp(
+                float(value), timezone.utc
+            ).astimezone().isoformat(timespec="seconds")
+
         return {
-            "cycles": cycles,
-            "retained_cycles": len(cycles),
+            "retained_cycles": len(history),
             "history_days": self.coordinator.history_days,
             "max_history_cycles": self.coordinator.max_history_cycles,
+            "last_cycle_start": iso(latest.get("start")),
+            "last_cycle_end": iso(latest.get("end")),
+            "last_cycle_duration": (
+                round(float(latest["duration"]))
+                if latest.get("duration") is not None else None
+            ),
+            "last_cycle_average_power": (
+                round(float(latest["average_power"]), 1)
+                if latest.get("average_power") is not None else None
+            ),
+            "last_cycle_peak_power": (
+                round(float(latest["peak_power"]), 1)
+                if latest.get("peak_power") is not None else None
+            ),
         }
