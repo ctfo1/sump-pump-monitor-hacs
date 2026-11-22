@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import logging
 from typing import Any
 
-from homeassistant.core import callback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_OFF, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, HomeAssistant, callback
@@ -14,11 +13,6 @@ from homeassistant.helpers.storage import Store
 from .const import *
 
 _LOGGER = logging.getLogger(__name__)
-
-# Dispatcher signal used by entities to refresh immediately when pump state changes.
-UPDATE_SIGNAL = "sump_pump_monitor_update"
-EVENT_CYCLE_COMPLETED = "sump_pump_monitor_cycle_completed"
-
 
 class PumpCoordinator:
     """Monitor one physical sump pump and persist completed-cycle history."""
@@ -43,6 +37,8 @@ class PumpCoordinator:
             "running_too_long_alerted": False,
             "sensor_offline_since": None,
             "sensor_offline_alerted": False,
+            "power_switch_last_state": None,
+            "power_switch_off_alerted": False,
             "history": [],
         }
         self._store = Store(
@@ -51,7 +47,6 @@ class PumpCoordinator:
         self._listeners = []
         self._runtime_cancel = None
         self._outage_cancel = None
-        self._last_status_update = 0.0
         self._entity_listeners = set()
 
     def add_update_listener(self, listener):
@@ -133,6 +128,7 @@ class PumpCoordinator:
                 self.state["run_start"] = datetime.now(timezone.utc).timestamp()
                 self.state["current_power_samples"] = [power]
                 self._schedule_runtime_alert()
+        self._process_switch_change()
         self._prune_history()
         await self._save()
         self.async_update_entities()
@@ -151,6 +147,11 @@ class PumpCoordinator:
             self.data.pop(key, None)
         else:
             self.data[key] = value
+
+        if key == CONF_POWER_SWITCH:
+            # A newly selected monitor establishes a baseline without a false alert.
+            self.state["power_switch_last_state"] = None
+            self.state["power_switch_off_alerted"] = False
 
         pumps = {
             pid: dict(pump)
@@ -189,7 +190,7 @@ class PumpCoordinator:
                 self._process_power_change()
                 self._process_switch_change()
 
-        self._dispatch_update()
+        self.async_update_entities()
         self._save_task()
 
     @property
@@ -205,16 +206,8 @@ class PumpCoordinator:
         return self.data[CONF_NAME]
 
     @property
-    def device_id(self):
-        return self.pump_id
-
-    @property
     def running_watts(self):
         return float(self.data.get(CONF_RUNNING_WATTS, DEFAULT_RUNNING_WATTS))
-
-    def _dispatch_update(self):
-        """Notify entities that coordinator state has changed."""
-        self.async_update_entities()
 
     def _save(self):
         return self._store.async_save(self.state)
@@ -270,15 +263,29 @@ class PumpCoordinator:
             self.state["current_power_samples"] = samples[-300:]
             self._evaluate_high_power()
             self._evaluate_heavy_cycling()
-        self._dispatch_update()
+        self.async_update_entities()
 
     def _process_switch_change(self):
-        if self._switch_on() is False:
+        """Alert once per on-to-off transition, retaining the latch across restarts."""
+        current = self._switch_on()
+        if current is None:
+            return
+
+        previous = self.state.get("power_switch_last_state")
+        if current:
+            # Returning to on rearms the next switched-off alert.
+            self.state["power_switch_off_alerted"] = False
+        elif previous is True and not self.state.get("power_switch_off_alerted", False):
+            self.state["power_switch_off_alerted"] = True
             self._notify(
                 "Sump Pump Monitor: Power Monitor Switched Off",
                 f"{self.name}: the configured power monitor switch is off.",
             )
-        self._dispatch_update()
+
+        # If there is no prior known state, this is the initial baseline and
+        # must not generate an alert merely because the switch starts off.
+        self.state["power_switch_last_state"] = current
+        self.async_update_entities()
 
     def _start_run(self, power: float):
         now = datetime.now(timezone.utc)
@@ -294,7 +301,7 @@ class PumpCoordinator:
         self._schedule_runtime_alert()
         self._evaluate_high_power()
         self._evaluate_heavy_cycling()
-        self._dispatch_update()
+        self.async_update_entities()
         self._save_task()
 
     def _stop_run(self):
@@ -345,7 +352,7 @@ class PumpCoordinator:
                 "peak_power": round(peak_power, 1) if peak_power is not None else None,
             },
         )
-        self._dispatch_update()
+        self.async_update_entities()
         self._save_task()
 
     def _schedule_runtime_alert(self):
@@ -367,7 +374,7 @@ class PumpCoordinator:
                 f"{self.name}: pump has been running for {elapsed:.1f} seconds "
                 f"(limit: {float(self.data.get(CONF_MAX_RUN_SECONDS, DEFAULT_MAX_RUN_SECONDS)):.0f}s).",
             )
-            self._dispatch_update()
+            self.async_update_entities()
             self._save_task()
 
     def _evaluate_high_power(self):
@@ -610,7 +617,7 @@ class PumpCoordinator:
             60,
             self._outage_alert,
         )
-        self._dispatch_update()
+        self.async_update_entities()
         self._save_task()
 
     def _clear_sensor_offline(self):
@@ -627,7 +634,7 @@ class PumpCoordinator:
                 "Sump Pump Monitor: Power Monitor Back Online",
                 f"{self.name}: the power monitor is available again.",
             )
-        self._dispatch_update()
+        self.async_update_entities()
         self._save_task()
 
     @callback
@@ -639,7 +646,7 @@ class PumpCoordinator:
                 "Sump Pump Monitor: Power Monitor Unavailable",
                 f"{self.name}: the configured power sensor is unavailable. Pump monitoring is suspended.",
             )
-            self._dispatch_update()
+            self.async_update_entities()
             self._save_task()
 
     def _notify(self, title, message):
