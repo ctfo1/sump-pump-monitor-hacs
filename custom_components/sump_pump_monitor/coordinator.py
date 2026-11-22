@@ -286,7 +286,6 @@ class PumpCoordinator:
         # must not generate an alert merely because the switch starts off.
         self.state["power_switch_last_state"] = current
         self.async_update_entities()
-        self._save_task()
 
     def _start_run(self, power: float):
         now = datetime.now(timezone.utc)
