@@ -30,4 +30,4 @@ DEFAULT_MAX_RUN_SECONDS = 30.0
 
 EVENT_CYCLE_COMPLETED = "sump_pump_monitor_cycle_completed"
 
-PLATFORMS = ["sensor", "binary_sensor", "number", "select", "button"]
+PLATFORMS = ["sensor", "binary_sensor", "number", "select", "button", "switch"]

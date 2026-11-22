@@ -14,6 +14,7 @@ from . import button as _button  # noqa: F401
 from . import number as _number  # noqa: F401
 from . import select as _select  # noqa: F401
 from . import sensor as _sensor  # noqa: F401
+from . import switch as _switch  # noqa: F401
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:

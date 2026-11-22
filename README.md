@@ -14,6 +14,10 @@ The integration monitors:
 
 A pump reporting 0 W while its power monitor is available and switched on is a normal **pump off** condition.
 
+## Pump device controls
+
+When a power-monitor switch is configured for a pump, the pump device includes a **Power Monitor Control** toggle in its Controls section. It mirrors the selected switch's live state and forwards on/off commands to that same switch entity. If the underlying switch is unavailable, the control remains visible but unavailable. Pumps without a configured switch do not get this control.
+
 ## Cycle history
 
 Completed cycles are persisted independently for each pump with their start time, end time, duration, average power, and peak power. History is stored by the integration, not in helper entities or Recorder, and survives Home Assistant restarts.
