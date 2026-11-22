@@ -7,7 +7,7 @@ A Home Assistant custom integration for monitoring one or more sump pumps using 
 The integration monitors:
 
 - **Power monitor unavailable** — the selected power sensor is unknown or unavailable. A fixed one-minute grace period is used before an alert is sent; monitoring resumes when the sensor returns.
-- **Power monitor switched off** — the optional smart-plug switch is explicitly off. An alert is sent once on an on-to-off transition, and is rearmed when the switch returns on. Its last known state is preserved while unavailable, so a missed on-to-off transition is detected when it returns. The alert latch is persisted across restarts.
+- **Power monitor switched off** — the optional smart-plug switch is explicitly off. An alert is sent once on an on-to-off transition, and is rearmed when the switch returns on. The alert latch is persisted so Home Assistant restarts do not repeat the same alert.
 - **Pump running too long** — continuous runtime exceeds the configured maximum.
 - **High power draw** — the current run's average draw exceeds the historical average of up to the 20 most recent completed cycles by the configured percentage.
 - **Heavy cycling** — cycle frequency in the configured rolling window exceeds the historical expected rate. The baseline uses up to 20 recent completed cycles and requires at least 10 completed cycles.
@@ -49,6 +49,6 @@ The integration retains up to 300 power samples for the current run (approximate
 
 ## Operational notes
 
-If Home Assistant starts while a pump is already running, the actual start time is unknowable. Runtime measurement therefore begins when the integration observes the running pump after startup; it does not fabricate a historical start time. If the power sensor becomes unavailable during a run, the unobserved interval is excluded and the incomplete run is omitted from completed-cycle history.
+If Home Assistant starts while a pump is already running, the actual start time is unknowable. Runtime measurement therefore begins when the integration observes the running pump after startup; it does not fabricate a historical start time.
 
 The integration is event-driven and reacts to state changes from the configured power sensor and optional switch. It is intended as a monitoring aid, not as a replacement for independent sump-pump safety measures.

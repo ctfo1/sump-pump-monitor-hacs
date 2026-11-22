@@ -20,7 +20,7 @@ If the configured power sensor becomes `unknown` or `unavailable`, pump-cycle mo
 
 If an optional power-monitor switch is configured and its state changes from on to off, the integration sends one switched-off alert. The alert latch is persisted across Home Assistant restarts, so a switch that remains off does not generate a new alert on every startup. Returning the switch to on clears the latch and rearms the next on-to-off alert.
 
-If no previous switch state has been recorded, the first known state is treated as a baseline. This avoids a spurious alert merely because the switch is already off during initial setup. If Home Assistant was offline, or the switch entity was unavailable, during an on-to-off transition and the last persisted state was on, the transition is detected when the switch becomes available again and one alert is sent. This detection is independent of power-sensor availability.
+If no previous switch state has been recorded, the first known state is treated as a baseline. This avoids a spurious alert merely because the switch is already off during initial setup. If Home Assistant was offline during an on-to-off transition and the last persisted state was on, startup detects the transition and sends one alert.
 
 A pump drawing 0 W while the monitor is available and switched on is normal and is not an alert.
 
@@ -28,7 +28,7 @@ A pump drawing 0 W while the monitor is available and switched on is normal and 
 
 A run begins when power rises above the configured running threshold. If continuous runtime reaches **Maximum Run Duration**, a notification is sent once for that run.
 
-If Home Assistant starts while the pump is already running, the actual start time is unknowable. Runtime measurement begins when the integration observes the running pump after startup. The runtime timer is restored from this new observed start after each restart. If the power sensor becomes unavailable during a run, the unobserved interval is excluded and the incomplete run is omitted from completed-cycle history.
+If Home Assistant starts while the pump is already running, the actual start time is unknowable. Runtime measurement begins when the integration observes the running pump after startup; the integration does not invent a historical start time.
 
 ### High power draw
 
@@ -71,7 +71,7 @@ When a cycle completes, the integration fires the `sump_pump_monitor_cycle_compl
 - Heavy usage window: **6 hours**
 - Heavy cycling threshold: **50%**
 - Heavy-cycling baseline: **at least 10 and up to 20 completed cycles**
-- Power-monitor unavailable grace period: **1 minute**, with its original deadline restored after restart
+- Power-monitor unavailable grace period: **1 minute**
 - Current-run power buffer: **300 samples**
 - History age: **90 days**
 - Maximum cycles per pump: **2,000**

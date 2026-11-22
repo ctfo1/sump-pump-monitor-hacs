@@ -368,17 +368,21 @@ class PumpCoordinator:
         if not interrupted:
             self.hass.bus.async_fire(
                 EVENT_CYCLE_COMPLETED,
-            {
-                "pump_id": self.pump_id,
-                "pump_name": self.name,
-                "start": (
-                    datetime.fromtimestamp(float(start), timezone.utc).astimezone().isoformat(timespec="seconds")
-                    if start else None
-                ),
-                "end": datetime.fromtimestamp(ts, timezone.utc).astimezone().isoformat(timespec="seconds"),
-                "duration": round(duration) if duration is not None else None,
-                "average_power": round(avg_power, 1) if avg_power is not None else None,
-                "peak_power": round(peak_power, 1) if peak_power is not None else None,
+                {
+                    "pump_id": self.pump_id,
+                    "pump_name": self.name,
+                    "start": (
+                        datetime.fromtimestamp(float(start), timezone.utc)
+                        .astimezone()
+                        .isoformat(timespec="seconds")
+                        if start else None
+                    ),
+                    "end": datetime.fromtimestamp(ts, timezone.utc)
+                    .astimezone()
+                    .isoformat(timespec="seconds"),
+                    "duration": round(duration) if duration is not None else None,
+                    "average_power": round(avg_power, 1) if avg_power is not None else None,
+                    "peak_power": round(peak_power, 1) if peak_power is not None else None,
                 },
             )
         self._evaluate_heavy_cycling()
@@ -671,7 +675,12 @@ class PumpCoordinator:
         if self._outage_cancel:
             self._outage_cancel()
             self._outage_cancel = None
-        if self.state.get("run_interrupted") and self._power() is not None and self._power() <= self.running_watts:
+        power = self._power()
+        if (
+            self.state.get("run_interrupted")
+            and power is not None
+            and power <= self.running_watts
+        ):
             self.state["run_interrupted"] = False
         if was_alerted:
             self._notify(
@@ -684,7 +693,14 @@ class PumpCoordinator:
     @callback
     def _outage_alert(self, _):
         self._outage_cancel = None
-        if self.state.get("sensor_offline_since") and not self.state.get("sensor_offline_alerted"):
+        offline_since = self.state.get("sensor_offline_since")
+        if offline_since and not self.state.get("sensor_offline_alerted"):
+            remaining = 60 - (datetime.now(timezone.utc).timestamp() - float(offline_since))
+            if remaining > 0:
+                self._outage_cancel = async_call_later(
+                    self.hass, remaining, self._outage_alert
+                )
+                return
             self.state["sensor_offline_alerted"] = True
             self._notify(
                 "Sump Pump Monitor: Power Monitor Unavailable",
