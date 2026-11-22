@@ -39,6 +39,7 @@ class PumpCoordinator:
             "sensor_offline_alerted": False,
             "power_switch_last_state": None,
             "power_switch_off_alerted": False,
+            "run_interrupted": False,
             "history": [],
         }
         self._store = Store(
@@ -106,6 +107,7 @@ class PumpCoordinator:
             self.state.update(stored)
             self.state.setdefault("history", [])
             self.state.setdefault("current_power_samples", [])
+            self.state.setdefault("run_interrupted", False)
             self._prune_history()
 
         entities = [self.power_sensor]
@@ -123,11 +125,12 @@ class PumpCoordinator:
             self.state["running"] = power > self.running_watts
             if not self.state["running"]:
                 self.state["run_start"] = None
-            elif self.state["run_start"] is None:
-                # Do not invent a historical start time after restart.
+            else:
+                # Only measure the interval observed since this HA startup.
                 self.state["run_start"] = datetime.now(timezone.utc).timestamp()
                 self.state["current_power_samples"] = [power]
-                self._schedule_runtime_alert()
+                if not self.state.get("running_too_long_alerted"):
+                    self._schedule_runtime_alert()
         self._process_switch_change()
         self._prune_history()
         await self._save()
@@ -166,6 +169,13 @@ class PumpCoordinator:
         options = dict(self.entry.options)
         options[CONF_PUMPS] = pumps
         self.hass.config_entries.async_update_entry(self.entry, options=options)
+
+        if key == CONF_MAX_RUN_SECONDS and self.state.get("running"):
+            if not self.state.get("running_too_long_alerted"):
+                self._schedule_runtime_alert()
+            elif self.current_run_seconds < float(value):
+                self.state["running_too_long_alerted"] = False
+                self._schedule_runtime_alert()
 
         # Rebind state listeners if either monitored entity changed.
         if key in (CONF_POWER_SENSOR, CONF_POWER_SWITCH):
@@ -235,7 +245,9 @@ class PumpCoordinator:
         new = event.data.get("new_state")
         if entity_id == self.power_sensor:
             if new and new.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                self._process_switch_change()
                 self._sensor_offline()
+                self._save_task()
                 return
             if self._power() is None:
                 self._sensor_offline()
@@ -253,7 +265,10 @@ class PumpCoordinator:
             return
         running = power > self.running_watts
         if running and not self.state["running"]:
-            self._start_run(power)
+            if self.state.get("run_interrupted"):
+                self._resume_interrupted_run(power)
+            else:
+                self._start_run(power)
         elif not running and self.state["running"]:
             self._stop_run()
         elif running:
@@ -287,6 +302,17 @@ class PumpCoordinator:
         self.state["power_switch_last_state"] = current
         self.async_update_entities()
 
+    def _resume_interrupted_run(self, power: float):
+        """Resume observation after a sensor outage without counting a new cycle."""
+        self.state["running"] = True
+        self.state["run_start"] = datetime.now(timezone.utc).timestamp()
+        self.state["current_power_samples"] = [power]
+        if not self.state.get("running_too_long_alerted"):
+            self._schedule_runtime_alert()
+        self._evaluate_high_power()
+        self.async_update_entities()
+        self._save_task()
+
     def _start_run(self, power: float):
         now = datetime.now(timezone.utc)
         ts = now.timestamp()
@@ -317,7 +343,8 @@ class PumpCoordinator:
         peak_power = max(samples) if samples else None
         self.state["last_run_avg_power"] = avg_power
         self.state["last_run_peak_power"] = peak_power
-        if start:
+        interrupted = bool(self.state.get("run_interrupted"))
+        if start and not interrupted:
             self.state.setdefault("history", []).append(
                 {
                     "start": float(start),
@@ -329,6 +356,7 @@ class PumpCoordinator:
             )
         self.state["run_start"] = None
         self.state["current_power_samples"] = []
+        self.state["run_interrupted"] = False
         if self._runtime_cancel:
             self._runtime_cancel()
             self._runtime_cancel = None
@@ -337,8 +365,9 @@ class PumpCoordinator:
         # Emit a real-time event for the completed cycle. The retained history
         # above remains the persistent record; the event is intended for
         # automations and other consumers that need the cycle immediately.
-        self.hass.bus.async_fire(
-            EVENT_CYCLE_COMPLETED,
+        if not interrupted:
+            self.hass.bus.async_fire(
+                EVENT_CYCLE_COMPLETED,
             {
                 "pump_id": self.pump_id,
                 "pump_name": self.name,
@@ -350,22 +379,30 @@ class PumpCoordinator:
                 "duration": round(duration) if duration is not None else None,
                 "average_power": round(avg_power, 1) if avg_power is not None else None,
                 "peak_power": round(peak_power, 1) if peak_power is not None else None,
-            },
-        )
+                },
+            )
+        self._evaluate_heavy_cycling()
         self.async_update_entities()
         self._save_task()
 
     def _schedule_runtime_alert(self):
         if self._runtime_cancel:
             self._runtime_cancel()
-        delay = max(1.0, float(self.data.get(CONF_MAX_RUN_SECONDS, DEFAULT_MAX_RUN_SECONDS)))
+        limit = float(self.data.get(CONF_MAX_RUN_SECONDS, DEFAULT_MAX_RUN_SECONDS))
+        remaining = limit - self.current_run_seconds
         self._runtime_cancel = async_call_later(
-            self.hass, delay, self._runtime_alert
+            self.hass, max(1.0, remaining), self._runtime_alert
         )
 
     @callback
     def _runtime_alert(self, _):
         self._runtime_cancel = None
+        if not self.state.get("running") or self.state.get("running_too_long_alerted"):
+            return
+        limit = float(self.data.get(CONF_MAX_RUN_SECONDS, DEFAULT_MAX_RUN_SECONDS))
+        if self.current_run_seconds < limit:
+            self._schedule_runtime_alert()
+            return
         if self.state.get("running") and not self.state.get("running_too_long_alerted"):
             self.state["running_too_long_alerted"] = True
             elapsed = self.current_run_seconds
@@ -449,7 +486,7 @@ class PumpCoordinator:
         max_cycles = self.max_history_cycles
         cutoff = datetime.now(timezone.utc).timestamp() - history_days * 86400
         history = [r for r in history if float(r.get("start", 0)) >= cutoff]
-        history = history[-max_cycles:]
+        history = history[-max(1, max_cycles):]
         self.state["history"] = history
 
     @property
@@ -605,18 +642,23 @@ class PumpCoordinator:
         self.hass.async_create_task(self._save())
 
     def _sensor_offline(self):
-        if self.state.get("sensor_offline_since") is not None:
-            return
-        self.state["sensor_offline_since"] = datetime.now(timezone.utc).timestamp()
-        self.state["sensor_offline_alerted"] = False
+        offline_since = self.state.get("sensor_offline_since")
+        if offline_since is None:
+            offline_since = datetime.now(timezone.utc).timestamp()
+            self.state["sensor_offline_since"] = offline_since
+            self.state["sensor_offline_alerted"] = False
+            if self.state.get("running"):
+                self.state["run_interrupted"] = True
+                self.state["running"] = False
+                self.state["run_start"] = None
+                self.state["current_power_samples"] = []
+                if self._runtime_cancel:
+                    self._runtime_cancel()
+                    self._runtime_cancel = None
         if self._outage_cancel:
             self._outage_cancel()
-        # Keep the startup/outage grace period fixed at one minute.
-        self._outage_cancel = async_call_later(
-            self.hass,
-            60,
-            self._outage_alert,
-        )
+        remaining = 60 - (datetime.now(timezone.utc).timestamp() - float(offline_since))
+        self._outage_cancel = async_call_later(self.hass, max(1.0, remaining), self._outage_alert)
         self.async_update_entities()
         self._save_task()
 
@@ -629,6 +671,8 @@ class PumpCoordinator:
         if self._outage_cancel:
             self._outage_cancel()
             self._outage_cancel = None
+        if self.state.get("run_interrupted") and self._power() is not None and self._power() <= self.running_watts:
+            self.state["run_interrupted"] = False
         if was_alerted:
             self._notify(
                 "Sump Pump Monitor: Power Monitor Back Online",

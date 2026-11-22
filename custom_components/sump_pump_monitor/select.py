@@ -36,6 +36,7 @@ class PumpEntitySelect(SelectEntity):
         self._attr_name = (
             "Pump Power Sensor" if key == CONF_POWER_SENSOR else "Power Monitor Switch"
         )
+        self._label_to_entity = {}
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.pump_id)},
             "name": coordinator.name,
@@ -59,8 +60,14 @@ class PumpEntitySelect(SelectEntity):
         if current and current not in entities:
             entities.insert(0, current)
 
-        labels = [_friendly_entity(self.coordinator.hass, entity_id) for entity_id in entities]
-        self._label_to_entity = dict(zip(labels, entities))
+        labels = []
+        self._label_to_entity = {}
+        for entity_id in entities:
+            label = _friendly_entity(self.coordinator.hass, entity_id)
+            if label in self._label_to_entity:
+                label = f"{label} ({entity_id})"
+            labels.append(label)
+            self._label_to_entity[label] = entity_id
         if self.key == CONF_POWER_SWITCH:
             labels.insert(0, "None — no power monitor switch")
             self._label_to_entity["None — no power monitor switch"] = ""

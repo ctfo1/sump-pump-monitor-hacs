@@ -62,11 +62,11 @@ class SumpPumpMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(
                     CONF_HISTORY_DAYS, default=DEFAULT_HISTORY_DAYS
-                ): vol.Coerce(int),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1)),
                 vol.Required(
                     CONF_MAX_HISTORY_CYCLES,
                     default=DEFAULT_MAX_HISTORY_CYCLES,
-                ): vol.Coerce(int),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1)),
             }
         )
 
@@ -164,6 +164,7 @@ class SumpPumpMonitorOptionsFlow(config_entries.OptionsFlowWithReload):
             step_id="init",
             menu_options={
                 "add_pump": "Add pump",
+                "edit_pump": "Edit pump",
                 "remove_pump": "Remove pump",
                 "notification": "Notification settings",
                 "history": "Cycle history settings",
@@ -199,11 +200,11 @@ class SumpPumpMonitorOptionsFlow(config_entries.OptionsFlowWithReload):
                 {
                     vol.Required(
                         CONF_HISTORY_DAYS, default=general[CONF_HISTORY_DAYS]
-                    ): vol.Coerce(int),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1)),
                     vol.Required(
                         CONF_MAX_HISTORY_CYCLES,
                         default=general[CONF_MAX_HISTORY_CYCLES],
-                    ): vol.Coerce(int),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1)),
                 }
             ),
         )
