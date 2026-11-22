@@ -1,99 +1,54 @@
 # Sump Pump Monitor
 
-A Home Assistant custom integration inspired by [oester/sump_monitor](https://github.com/oester/sump_monitor).
-
-Sump Pump Monitor monitors one or more sump pumps using existing Home Assistant power-monitor entities. Each configured pump is a Home Assistant device.
+A Home Assistant custom integration for monitoring one or more sump pumps using existing Home Assistant power-monitor entities. Each configured pump is represented as a Home Assistant device.
 
 ## Monitoring
 
-The integration focuses on five conditions:
+The integration monitors:
 
-1. **Power monitor unavailable** — the configured power sensor is unavailable/unknown for the configured delay.
-2. **Power monitor switched off** — the optional smart-plug switch is explicitly off.
-3. **Pump running too long** — continuous runtime exceeds the configured maximum.
-4. **High power draw** — the current cycle's average draw exceeds the recent historical average by the configured percentage.
-5. **Heavy cycling** — the number of cycles in a rolling usage window exceeds the recent historical expected rate by the configured percentage.
+- **Power monitor unavailable** — the selected power sensor is unknown or unavailable. A fixed one-minute grace period is used before an alert is sent; monitoring resumes when the sensor returns.
+- **Power monitor switched off** — the optional smart-plug switch is explicitly off. An alert is sent once on an on-to-off transition, and is rearmed when the switch returns on. The alert latch is persisted so Home Assistant restarts do not repeat the same alert.
+- **Pump running too long** — continuous runtime exceeds the configured maximum.
+- **High power draw** — the current run's average draw exceeds the historical average of up to the 20 most recent completed cycles by the configured percentage.
+- **Heavy cycling** — cycle frequency in the configured rolling window exceeds the historical expected rate. The baseline uses up to 20 recent completed cycles and requires at least 10 completed cycles.
 
-A pump reporting 0 W while its power monitor is available and switched on is a normal **pump off** condition and does not generate an alert.
+A pump reporting 0 W while its power monitor is available and switched on is a normal **pump off** condition.
 
-## Historical cycle data
+## Cycle history
 
-Every completed cycle is persisted independently for each pump with:
+Completed cycles are persisted independently for each pump with their start time, end time, duration, average power, and peak power. History is stored by the integration, not in helper entities or Recorder, and survives Home Assistant restarts.
 
-- cycle start date/time
-- cycle end date/time
-- duration
-- average running power
-- peak running power
+The **Cycle History** sensor reports the number of retained cycles and a compact summary of the latest cycle. It intentionally does not duplicate the full history in entity attributes.
 
-History is retained for **90 days** by default, with a maximum of **2,000 cycles per pump**. The oldest records are discarded first when either limit is reached. Retention can be changed from the integration's **Cycle history settings**.
+When a cycle completes, the integration fires the `sump_pump_monitor_cycle_completed` Home Assistant event. The event data contains:
 
-The historical data is integration-owned persistent storage; it is not stored in Home Assistant helper entities and is not dependent on Recorder retention.
+- `pump_id` and `pump_name`
+- `start` and `end` timestamps
+- `duration` in seconds
+- `average_power` and `peak_power` in watts
 
-Recent completed cycles are used as the anomaly-detection baselines. A cycle that is currently in progress is never included in the historical baseline.
+Automations can listen for this event to process each completed cycle immediately.
 
-### Cycle History entity
-
-Each pump exposes a **Cycle History** sensor. Its state is the number of retained completed cycles, while the `cycles` attribute contains the retained records in newest-first order. Each record includes start time, end time, duration, average power, and peak power. The data is backed by Home Assistant's integration storage and survives restarts; it is independent of Recorder retention.
-
-Retention is configurable from the integration's **Cycle history settings** menu:
-
-- **Maximum history age:** default 90 days
-- **Maximum cycles per pump:** default 2,000
-
-Both limits are enforced and the oldest records are removed first.
-
-For example, a Lovelace Markdown card can display the history directly:
-
-```yaml
-type: markdown
-title: Pump 3 Cycle History
-content: |
-  | Start | Duration | Avg | Peak |
-  |---|---:|---:|---:|
-  {% for cycle in state_attr('sensor.pump_3_cycle_history', 'cycles') or [] %}
-  | {{ as_timestamp(cycle.start) | timestamp_custom('%Y-%m-%d %H:%M:%S') if cycle.start else '—' }} | {{ cycle.duration }} s | {{ cycle.average_power }} W | {{ cycle.peak_power }} W |
-  {% endfor %}
-```
-
-The entity is a normal sensor rather than an event so Lovelace, templates, and automations can access the retained history directly.
+Default history retention is **90 days** and **2,000 cycles per pump**. Both limits can be changed from **Cycle history settings**.
 
 ## Installation with HACS
 
 1. Open **HACS → Integrations**.
 2. Select the three-dot menu → **Custom repositories**.
-3. Add this GitHub repository URL.
-4. Select **Integration** as the category.
-5. Install **Sump Pump Monitor**.
-6. Restart Home Assistant.
-7. Go to **Settings → Devices & services → Add integration** and search for **Sump Pump Monitor**.
+3. Add this GitHub repository URL and select **Integration**.
+4. Install **Sump Pump Monitor** and restart Home Assistant.
+5. Go to **Settings → Devices & services → Add integration** and search for **Sump Pump Monitor**.
 
 ## Configuration
 
-The integration uses one Home Assistant config entry and creates one Home Assistant device per configured pump.
+For each pump, configure its name, power sensor, and optional power-monitor switch. Additional thresholds and rolling-window settings are available as device configuration entities. The integration-wide notification target is a Home Assistant `notify` entity; Notification Group helpers can be selected.
 
-For each pump configure:
+Historical baselines use fixed sample counts: up to 20 recent completed cycles, with a minimum of 10 cycles for heavy-cycling evaluation. These counts are not configuration options.
 
-- Pump name
-- Pump power sensor
-- Optional power-monitor switch
-- Running power threshold
-- Maximum continuous runtime
-- High-power threshold
-- Number of recent cycles used for the power baseline
-- Heavy-usage rolling window
-- Heavy-cycling threshold
-- Minimum historical cycles before heavy-cycling detection
-- Power-monitor unavailable delay
+The integration retains up to 300 power samples for the current run (approximately 50 minutes when the source reports every 10 seconds).
 
-The integration-wide notification target is a Home Assistant `notify` entity. A Notification Group helper can be selected directly.
+## Operational notes
 
-## Entities
+If Home Assistant starts while a pump is already running, the actual start time is unknowable. Runtime measurement therefore begins when the integration observes the running pump after startup; it does not fabricate a historical start time.
 
-Each pump provides power, runtime, cycle-count, usage, historical-power and cycle-time entities, plus binary sensors for the five monitored conditions.
-
-A **Test Notification** button is also provided on each pump device.
-
-## Important
-
-This is an early development release. Do not rely on it as the sole protection for critical sump-pump equipment.
+The integration is event-driven and reacts to state changes from the configured power sensor and optional switch. It is intended as a monitoring aid, not as a replacement for independent sump-pump safety measures.
