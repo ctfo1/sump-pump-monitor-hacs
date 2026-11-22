@@ -11,22 +11,16 @@
           "running_watts": "Running power threshold (W)",
           "max_run_seconds": "Maximum continuous runtime (seconds)",
           "high_power_percent": "High power threshold (%)",
-          "power_baseline_cycles": "Power baseline cycles",
           "usage_window_hours": "Heavy usage window (hours)",
           "heavy_cycling_percent": "Heavy cycling threshold (%)",
-          "min_historical_cycles": "Minimum historical cycles",
-          "sensor_outage_minutes": "Power monitor unavailable delay (minutes)",
           "notification_target": "Notification target"
         },
         "data_description": {
           "power_sensor": "Select the sensor that reports the pump's electrical power in watts.",
           "power_switch": "Select the smart-plug switch entity if available. This lets the integration distinguish a switched-off monitor from an unavailable monitor.",
           "high_power_percent": "Alert when the current cycle's average draw exceeds the historical baseline by this percentage.",
-          "power_baseline_cycles": "Number of recent completed cycles used to calculate the historical power baseline.",
           "usage_window_hours": "Rolling period used to evaluate heavy cycling.",
           "heavy_cycling_percent": "Alert when current cycling exceeds the historical expected cycling rate by this percentage.",
-          "min_historical_cycles": "Minimum completed cycles required before heavy-cycling detection becomes active.",
-          "sensor_outage_minutes": "How long the power sensor may be unavailable before an alert is sent.",
           "notification_target": "Select a notify entity, including a notification group helper."
         }
       }
@@ -67,21 +61,15 @@
           "running_watts": "Running power threshold (W)",
           "max_run_seconds": "Maximum continuous runtime (seconds)",
           "high_power_percent": "High power threshold (%)",
-          "power_baseline_cycles": "Power baseline cycles",
           "usage_window_hours": "Heavy usage window (hours)",
-          "heavy_cycling_percent": "Heavy cycling threshold (%)",
-          "min_historical_cycles": "Minimum historical cycles",
-          "sensor_outage_minutes": "Power monitor unavailable delay (minutes)"
+          "heavy_cycling_percent": "Heavy cycling threshold (%)"
         },
         "data_description": {
           "power_sensor": "The sensor that reports pump power in watts.",
           "power_switch": "The smart-plug switch entity. Optional, but recommended when the monitor can be switched off.",
           "high_power_percent": "Alert when current average cycle draw is this much higher than the historical baseline.",
-          "power_baseline_cycles": "Recent completed cycles used for the historical power baseline.",
           "usage_window_hours": "Rolling period used to evaluate heavy cycling.",
-          "heavy_cycling_percent": "Alert when cycling exceeds the historical expected rate by this percentage.",
-          "min_historical_cycles": "Minimum completed cycles required before heavy-cycling detection activates.",
-          "sensor_outage_minutes": "Delay before an unavailable power sensor generates an alert."
+          "heavy_cycling_percent": "Alert when cycling exceeds the historical expected rate by this percentage."
         }
       },
       "edit_pump": {
@@ -100,11 +88,8 @@
           "running_watts": "Running power threshold (W)",
           "max_run_seconds": "Maximum continuous runtime (seconds)",
           "high_power_percent": "High power threshold (%)",
-          "power_baseline_cycles": "Power baseline cycles",
           "usage_window_hours": "Heavy usage window (hours)",
-          "heavy_cycling_percent": "Heavy cycling threshold (%)",
-          "min_historical_cycles": "Minimum historical cycles",
-          "sensor_outage_minutes": "Power monitor unavailable delay (minutes)"
+          "heavy_cycling_percent": "Heavy cycling threshold (%)"
         }
       },
       "remove_pump": {
